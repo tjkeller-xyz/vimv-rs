@@ -45,7 +45,8 @@ Options:
 Flags:
   -f, --force               Allow overwriting existing files.
   -h, --help                Print this help text and exit.
-  -q, --quiet               Quiet mode -- only report errors.
+  -v, --verbose             Verbose mode -- reports all changes.
+  -q, --quiet               Quiet mode -- only report errors. Overrides verbose mode.
   -s, --stdin               Read the list of input files from standard input.
   -v, --version             Print the version number and exit.
 ";
@@ -57,6 +58,7 @@ fn main() {
         .version(env!("CARGO_PKG_VERSION"))
         .flag("force f")
         .flag("quiet q")
+        .flag("verbose v")
         .flag("stdin s")
         .option("editor e", "");
 
@@ -254,13 +256,22 @@ fn main() {
     }
 
     // Deletion loop. We haven't made any changes to the file system up to this point.
-    for input_file in delete_list {
-        delete_file(input_file, parser.found("quiet"));
+    let verbose = parser.found("verbose") && !parser.found("quiet");
+    for input_file in &delete_list {
+        delete_file(input_file, verbose);
     }
 
     // Rename loop.
-    for (input_file, output_file) in rename_list {
-        move_file(&input_file, &output_file, parser.found("quiet"));
+    for (input_file, output_file) in &rename_list {
+        move_file(&input_file, &output_file, verbose);
+    }
+
+    // Print totals unless quiet flag is set.
+    if !parser.found("quiet") {
+        if !delete_list.is_empty() {
+            println!("{} Files Deleted.", delete_list.len());
+        }
+        println!("{} Files Renamed.", rename_list.len());
     }
 }
 
@@ -283,8 +294,8 @@ fn get_temp_filename(base: &str) -> String {
 
 
 // Move the specified file to the system's trash/recycle bin.
-fn delete_file(input_file: &str, quiet: bool) {
-    if !quiet {
+fn delete_file(input_file: &str, verbose: bool) {
+    if verbose {
         println!("{} {}", "Deleting".green().bold(), input_file);
     }
     if let Err(err) = trash::delete(input_file) {
@@ -295,8 +306,8 @@ fn delete_file(input_file: &str, quiet: bool) {
 
 
 // Rename `input_file` to `output_file`.
-fn move_file(input_file: &str, output_file: &str, quiet: bool) {
-    if !quiet {
+fn move_file(input_file: &str, output_file: &str, verbose: bool) {
+    if verbose {
         println!("{} {}", "Renaming".green().bold(), input_file);
         println!("      {}  {}", "⮑".green().bold(), output_file);
     }
